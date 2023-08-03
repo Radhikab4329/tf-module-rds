@@ -1,4 +1,4 @@
-resource "aws_docdb_subnet_group" "default" {
+resource "aws_db_subnet_group" "default" {
   name       = "${var.env}-docdb-subnet-group"
   subnet_ids = var.subnet_ids
 
@@ -8,15 +8,15 @@ resource "aws_docdb_subnet_group" "default" {
   )
 }
 
-resource "aws_security_group" "docdb" {
-  name        = "${var.env}-docdb-security-group"
-  description = "${var.env}-docdb-security-group"
+resource "aws_security_group" "rds" {
+  name        = "${var.env}-rds-security-group"
+  description = "${var.env}-rds-security-group"
   vpc_id      = var.vpc_id
 
   ingress {
-    description      = "MongoDB"
-    from_port        = 27017
-    to_port          = 27017
+    description      = "RDS"
+    from_port        = 3306
+    to_port          = 3306
     protocol         = "tcp"
     cidr_blocks      = var.allow_cidr
   }
@@ -30,42 +30,18 @@ resource "aws_security_group" "docdb" {
 
   tags = merge(
     local.common_tags,
-    { Name = "${var.env}-docdb-security-group" }
+    { Name = "${var.env}-rds-security-group" }
   )
 }
 
-resource "aws_docdb_cluster" "docdb" {
-  cluster_identifier      = "${var.env}-docdb-cluster"
-  engine                  = "docdb"
-  engine_version          = var.engine_version
-  master_username         = data.aws_ssm_parameter.DB_ADMIN_USER.value
-  master_password         = data.aws_ssm_parameter.DB_ADMIN_PASS.value
-  skip_final_snapshot     = true
-  db_subnet_group_name    = aws_docdb_subnet_group.default.name
-  vpc_security_group_ids = [aws_security_group.docdb.id]
-  storage_encrypted      = true
-  kms_key_id             = data.aws_kms_key.key.arn
-
-  tags = merge(
-    local.common_tags,
-    { Name = "${var.env}-docdb-cluster" }
-  )
+resource "aws_rds_cluster" "rds" {
+  cluster_identifier        = "${var.env}-rds"
+  engine                    = var.engine
+  engine_version            = var.engine_version
+  db_cluster_instance_class = var.instance_class
+  storage_type              = "io1"
+  allocated_storage         = 100
+  iops                      = 1000
+  master_username           = "test"
+  master_password           = "mustbeeightcharaters"
 }
-
-resource "aws_docdb_cluster_instance" "cluster_instances" {
-  count              = var.number_of_instances
-  identifier         = "${var.env}-docdb-cluster-instance-${count.index + 1}"
-  cluster_identifier = aws_docdb_cluster.docdb.id
-  instance_class     = var.instance_class
-  storage_encrypted      = true
-  kms_key_id             = data.aws_kms_key.key.arn
-
-}
-
-tags = merge(
-  local.common_tags,
-  { Name = "${var.env}-docdb-cluster-instance-${count.index + 1}" }
-)
-}
-
-
